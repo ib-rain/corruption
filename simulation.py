@@ -56,6 +56,9 @@ def true_with_prob(prob):
 
 
 def ru_steal_fine(wage, stealing):
+    if stealing == 0:
+        return 0
+
     if stealing >= 7500000:
         return max(s.mean((200000, 500000)), wage * 24)
     return max(s.mean((100000, 300000)), wage * 18)
@@ -72,11 +75,38 @@ def ru_bribe_fine(bribe):
     return bribe * mul
 
 
-def reward_func_example(stealing):
-    if stealing >= 400000:
-        return 75000
-    if stealing >= 100000:
-        return 40000
+def threshold_func(stealing, thresholds):
+    if stealing == 0:
+        return 0
+
+    for th in thresholds:
+        if stealing >= th[0]:
+            return th[1]
+
+
+def reward_func_s1(stealing):
+    return threshold_func(stealing, ((400000, 75000), (100000, 40000)))
+
+
+def reward_func_s2(stealing):
+    return threshold_func(stealing, ((400000, 300000), (100000, 40000)))
+
+
+def reward_func_s3(stealing):
+    return threshold_func(stealing, ((400000, 250000), (100000, 75000)))
+
+
+def coverup_cost_func_s1(stealing):
+    return threshold_func(stealing, ((400000, 11250), (100000, 5000)))
+
+
+def coverup_cost_func_s2(stealing):
+    return threshold_func(stealing, ((400000, 152500), (100000, 5000)))
+
+
+def coverup_cost_func_s3(stealing):
+    return threshold_func(stealing, ((400000, 123125), (100000, 49375)))
+
 
 # Bind inspection and coverup costs to hier_id or to wage or to stealing?
 
@@ -86,13 +116,6 @@ def inspection_cost_func_example(off):
         return 22500
     if off.hier_id[0] >= 1:
         return 10000
-
-
-def coverup_cost_func_example(stealing):
-    if stealing >= 400000:
-        return 11250
-    if stealing >= 100000:
-        return 5000
 
 
 def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
@@ -107,6 +130,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
         inspected_off = None
         exposers = []
         init_money = list(hierarchy.cutoff_values.values())[0][0]
+
 
         def calc_coverup_reward_inspect(exposers_list):
             coverup = 0
@@ -205,6 +229,8 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
             for off in off_level:
                 stealing[off_level] += hierarchy.get_with_id(off).steal(optimal_stealing)
 
+        total_stealing = sum(stealing.values())
+
         # Inspection stage: from top to bottom, from left to right
         for off_level in stealing:
             sum_stealing += stealing[off_level]
@@ -247,20 +273,30 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
         if inspected_off is None:
             end(1)
 
+    LoC = total_stealing / init_money
+
+
+
     # End of N cycles, Results
     for official in hierarchy.officials:
-        print("{}\n{}".format(official.hier_id, official.acc_win / N))
-    print("Inspector\n{}".format(hierarchy.inspector.acc_win / N))
+        print("{}".format(official.acc_win / N))
+    print("{}".format(hierarchy.inspector.acc_win / N))
+
+    print("\n{}".format(LoC))
+
+    # for official in hierarchy.officials:
+    #     print("{}\t{}".format(official.hier_id, official.acc_win / N))
+    # print("Inspector\t{}".format(hierarchy.inspector.acc_win / N))
 
 
 def main():
     strategies = (("None", "NB", 0), ("Opt", "E", 0), ("Opt", "B", 0.99))
 
     def level_1_official(hier_id):
-        return Official(hier_id=hier_id, wage=40000, strategy=("Opt", "E", 0.5), kappa=0.3, theta=0.01)
+        return Official(hier_id=hier_id, wage=40000, strategy=("Opt", "E", 1.0), kappa=0.3, theta=0.01)
 
     def level_2_official(hier_id):
-        return Official(hier_id=hier_id, wage=90000, strategy=("Opt", "B", 0.3), kappa=0.6, theta=1)
+        return Official(hier_id=hier_id, wage=90000, strategy=("Opt", "B", 1.0), kappa=0.6, theta=1)
 
     officials = [
         level_2_official((2, 0)), level_2_official((2, 1)),
@@ -278,11 +314,11 @@ def main():
         ((1, 2), (1, 3)): (2000000 / 2, 750000)
     }
 
-    inspector = Inspector(70000, inspection_cost_func_example, coverup_cost_func_example)
+    inspector = Inspector(70000, inspection_cost_func_example, coverup_cost_func_s3)
 
-    hier = Hierarchy(off_scheme, officials, cutoff_values, inspector)
+    hierarchy = Hierarchy(off_scheme, officials, cutoff_values, inspector)
 
-    simulate(N=10000, hierarchy=hier, steal_fine_func=ru_steal_fine, bribe_fine_func=ru_bribe_fine, reward_func=reward_func_example)
+    simulate(N=100000, hierarchy=hierarchy, steal_fine_func=ru_steal_fine, bribe_fine_func=ru_bribe_fine, reward_func=reward_func_s3)
 
 
 if __name__ == "__main__":
