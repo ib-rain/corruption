@@ -84,29 +84,28 @@ def threshold_func(stealing, thresholds):
             return th[1]
 
 
-def reward_func_s1(stealing):
+def reward_func_def(stealing):
     return threshold_func(stealing, ((400000, 75000), (100000, 40000)))
 
 
-def reward_func_s2(stealing):
-    return threshold_func(stealing, ((400000, 300000), (100000, 40000)))
+def reward_func_s1(stealing):
+    return threshold_func(stealing, ((400000, 100000), (100000, 84750)))
 
 
 def reward_func_s3(stealing):
-    return threshold_func(stealing, ((400000, 250000), (100000, 75000)))
+    return threshold_func(stealing, ((400000, 375000), (100000, 50000)))
 
 
-def coverup_cost_func_s1(stealing):
+def coverup_cost_func_def(stealing):
     return threshold_func(stealing, ((400000, 11250), (100000, 5000)))
 
 
-def coverup_cost_func_s2(stealing):
-    return threshold_func(stealing, ((400000, 152500), (100000, 5000)))
+def coverup_cost_func_s1(stealing):
+    return threshold_func(stealing, ((400000, 70000), (100000, 40125)))
 
 
 def coverup_cost_func_s3(stealing):
-    return threshold_func(stealing, ((400000, 123125), (100000, 49375)))
-
+    return threshold_func(stealing, ((400000, 59500), (100000, 15000)))
 
 # Bind inspection and coverup costs to hier_id or to wage or to stealing?
 
@@ -119,6 +118,7 @@ def inspection_cost_func_example(off):
 
 
 def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
+    acc_state_util = 0
     for _ in range(N):
         # Play the game N times.
         stealing = {}
@@ -130,7 +130,6 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
         inspected_off = None
         exposers = []
         init_money = list(hierarchy.cutoff_values.values())[0][0]
-
 
         def calc_coverup_reward_inspect(exposers_list):
             coverup = 0
@@ -145,82 +144,138 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
             return coverup, reward, inspect
 
         def end(x):
+            state_ut = init_money
+            # print(x)
+            
             if x == 1:
                 # No inspection
-                for official in hierarchy.officials:
-                    official.acc_win += official.wage + official.stealing
+                for off in hierarchy.officials:
+                    u = off.wage + off.stealing
+                    off.acc_win += u
+                    state_ut -= u
+                    # print("{}\t{}".format(off.hier_id, off.acc_win))
 
                 hierarchy.inspector.acc_win += hierarchy.inspector.wage
+                state_ut -= hierarchy.inspector.wage
+
+                return state_ut
             else:
-                # print("End {} with official {}.".format(x, inspected_off.hier_id))
+                # print("{}\t{}".format(inspected_off.hier_id, inspected_off.acc_win))
+
                 if x == 2:
                     # No bribe
-                    inspected_off.acc_win += inspected_off.wage + inspected_off.kappa * inspected_off.stealing - steal_fine_func(inspected_off.wage, inspected_off.stealing)
+                    u = inspected_off.wage + inspected_off.kappa * inspected_off.stealing - steal_fine_func(inspected_off.wage, inspected_off.stealing)
+                    inspected_off.acc_win += u
+                    state_ut -= u
 
-                    for official in set(hierarchy.officials) ^ {inspected_off}:
-                        official.acc_win += official.wage + official.stealing
+                    for off in set(hierarchy.officials) ^ {inspected_off}:
+                        u = off.wage + off.stealing
+                        off.acc_win += u
+                        state_ut -= u
 
                     hierarchy.inspector.acc_win += hierarchy.inspector.wage - hierarchy.inspector.inspection_cost_func(inspected_off) + reward_func(inspected_off.stealing)
+                    state_ut -= (hierarchy.inspector.wage + reward_func(inspected_off.stealing))
+
+                    return state_ut
                 elif x == 3:
                     # Rejected bribe
-                    inspected_off.acc_win += inspected_off.wage + inspected_off.kappa * inspected_off.stealing - (
+                    u = inspected_off.wage + inspected_off.kappa * inspected_off.stealing - (
                             inspected_off.bribe() + steal_fine_func(inspected_off.wage, inspected_off.stealing) +
                             bribe_fine_func(inspected_off.bribe()))
+                    inspected_off.acc_win += u
+                    state_ut -= u
 
-                    for official in set(hierarchy.officials) ^ {inspected_off}:
-                        official.acc_win += official.wage + official.stealing
+                    for off in set(hierarchy.officials) ^ {inspected_off}:
+                        u = off.wage + off.stealing
+                        off.acc_win += u
+                        state_ut -= u
 
                     hierarchy.inspector.acc_win += hierarchy.inspector.wage - hierarchy.inspector.inspection_cost_func(
-                        inspected_off) + inspected_off.bribe() - hierarchy.inspector.coverup_cost_func(
-                        inspected_off.stealing)
+                        inspected_off) + reward_func(inspected_off.stealing)
+
+                    state_ut -= (hierarchy.inspector.wage + reward_func(inspected_off.stealing))
+
+                    return state_ut
                 elif x == 4:
                     # Accepted bribe
                     inspected_off.acc_win += inspected_off.wage + inspected_off.stealing - inspected_off.bribe()
+                    state_ut -= (inspected_off.wage + inspected_off.stealing)
 
-                    for official in set(hierarchy.officials) ^ {inspected_off}:
-                        official.acc_win += official.wage + official.stealing
+                    for off in set(hierarchy.officials) ^ {inspected_off}:
+                        u = off.wage + off.stealing
+                        off.acc_win += u
+                        state_ut -= u
 
                     hierarchy.inspector.acc_win += hierarchy.inspector.wage + inspected_off.bribe() - (
                             hierarchy.inspector.inspection_cost_func(inspected_off) + hierarchy.inspector.coverup_cost_func(inspected_off.stealing))
+                    state_ut -= hierarchy.inspector.wage
+
+                    return state_ut
                 else:
                     sum_coverup, sum_reward, sum_inspect = calc_coverup_reward_inspect(exposers)
 
                     if x == 5:
                         # Exposed, no bribe
-                        inspected_off.acc_win += inspected_off.wage + inspected_off.kappa * inspected_off.stealing - steal_fine_func(
+                        u = inspected_off.wage + inspected_off.kappa * inspected_off.stealing - steal_fine_func(
                             inspected_off.wage, inspected_off.stealing)
+                        inspected_off.acc_win += u
+                        state_ut -= u
 
                         for exposer in exposers:
-                            exposer.acc_win += exposer.wage + exposer.kappa * exposer.stealing - exposer.theta * steal_fine_func(exposer.wage, exposer.stealing)
+                            u = exposer.wage + exposer.kappa * exposer.stealing - exposer.theta * steal_fine_func(exposer.wage, exposer.stealing)
+                            exposer.acc_win += u
+                            state_ut -= u
 
-                        for official in set(hierarchy.officials) ^ {inspected_off} ^ set(exposers):
-                            official.acc_win += official.wage + official.stealing
+                        for off in set(hierarchy.officials) ^ {inspected_off} ^ set(exposers):
+                            u = off.wage + off.stealing
+                            off.acc_win += u
+                            state_ut -= u
 
                         hierarchy.inspector.acc_win += hierarchy.inspector.wage  + reward_func(inspected_off.stealing) + sum_reward - (
                             hierarchy.inspector.inspection_cost_func(inspected_off) + sum_inspect)
+                        state_ut -= (hierarchy.inspector.wage + reward_func(inspected_off.stealing) + sum_reward)
+
+                        return state_ut
                     elif x == 6:
                         # Exposed, rejected bribe
-                        inspected_off.acc_win += inspected_off.wage + inspected_off.kappa * inspected_off.stealing - (steal_fine_func(
+                        u = inspected_off.wage + inspected_off.kappa * inspected_off.stealing - (steal_fine_func(
                             inspected_off.wage, inspected_off.stealing) + inspected_off.bribe() + bribe_fine_func(inspected_off.bribe()))
+                        inspected_off.acc_win += u
+                        state_ut -= u
+
 
                         for exposer in exposers:
-                            exposer.acc_win += exposer.wage + exposer.kappa * exposer.stealing - exposer.theta * steal_fine_func(
+                            u = exposer.wage + exposer.kappa * exposer.stealing - exposer.theta * steal_fine_func(
                                 exposer.wage, exposer.stealing)
+                            exposer.acc_win += u
+                            state_ut -= u
 
-                        for official in set(hierarchy.officials) ^ {inspected_off} ^ set(exposers):
-                            official.acc_win += official.wage + official.stealing
+                        for off in set(hierarchy.officials) ^ {inspected_off} ^ set(exposers):
+                            u = off.wage + off.stealing
+                            off.acc_win += u
+                            state_ut -= u
 
                         hierarchy.inspector.acc_win += hierarchy.inspector.wage + reward_func(inspected_off.stealing) + sum_reward - (
                             hierarchy.inspector.inspection_cost_func(inspected_off) + sum_inspect)
+                        state_ut -= (hierarchy.inspector.wage + reward_func(inspected_off.stealing) + sum_reward)
+
+                        return state_ut
                     elif x == 7:
                         # Exposed, accepted bribe
                         inspected_off.acc_win += inspected_off.wage + inspected_off.stealing - inspected_off.bribe()
+                        # print("{}\t{}\t{}\t{}".format(inspected_off.stealing, inspected_off.bribe(), inspected_off.wage, inspected_off.acc_win))
+                        state_ut -= (inspected_off.wage + inspected_off.stealing)
 
-                        for official in set(hierarchy.officials) ^ {inspected_off}:
-                            official.acc_win += official.wage + official.stealing
+                        for off in set(hierarchy.officials) ^ {inspected_off}:
+                            u = off.wage + off.stealing
+                            off.acc_win += u
+                            state_ut -= u
 
                         hierarchy.inspector.acc_win += hierarchy.inspector.wage + inspected_off.bribe() - (hierarchy.inspector.inspection_cost_func(
                             inspected_off) + hierarchy.inspector.coverup_cost_func(inspected_off.stealing) + sum_coverup + sum_inspect)
+                        state_ut -= hierarchy.inspector.wage
+
+                        return state_ut
 
         # Stealing stage
         for off_level in hierarchy.scheme.values():
@@ -229,9 +284,8 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
             for off in off_level:
                 stealing[off_level] += hierarchy.get_with_id(off).steal(optimal_stealing)
 
-        total_stealing = sum(stealing.values())
-
         # Inspection stage: from top to bottom, from left to right
+
         for off_level in stealing:
             sum_stealing += stealing[off_level]
             if true_with_prob(1 - sum_stealing / init_money):
@@ -240,15 +294,15 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                 inspected_off = hierarchy.get_with_id(r.choice(off_level))
                 action = inspected_off.action
                 if action == "NB":
-                    end(2)
+                    acc_state_util += end(2)
                     break
                 if action == "B":
                     acc_part_util = inspected_off.bribe() - hierarchy.inspector.coverup_cost_func(inspected_off.stealing)
                     rej_part_util = reward_func(inspected_off.stealing)
                     if acc_part_util <= rej_part_util:
-                        end(3)
+                        acc_state_util += end(3)
                     else:
-                        end(4)
+                        acc_state_util += end(4)
                     break
                 if action == "E":
                     while True:
@@ -256,7 +310,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                         inspected_off = hierarchy.get_boss_of_id(inspected_off.hier_id)
                         action = inspected_off.action
                         if action == "NB":
-                            end(5)
+                            acc_state_util += end(5)
                             break
                         if action == "B":
                             exposers_coverup, exposers_reward, exposers_inspect = calc_coverup_reward_inspect(exposers)
@@ -264,45 +318,50 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                                 inspected_off.stealing) - exposers_coverup
                             rej_part_util = reward_func(inspected_off.stealing) + exposers_reward
                             if acc_part_util <= rej_part_util:
-                                end(6)
+                                acc_state_util += end(6)
                             else:
-                                end(7)
+                                acc_state_util += end(7)
                             break
                 break
 
         if inspected_off is None:
-            end(1)
+            acc_state_util += end(1)
 
-    LoC = total_stealing / init_money
-
-
+    LoC = sum(stealing.values()) / init_money
 
     # End of N cycles, Results
     for official in hierarchy.officials:
         print("{}".format(official.acc_win / N))
-    print("{}".format(hierarchy.inspector.acc_win / N))
-
-    print("\n{}".format(LoC))
-
-    # for official in hierarchy.officials:
-    #     print("{}\t{}".format(official.hier_id, official.acc_win / N))
-    # print("Inspector\t{}".format(hierarchy.inspector.acc_win / N))
+    print("{}\n{}\n{}".format(hierarchy.inspector.acc_win / N, acc_state_util / N, LoC))
 
 
 def main():
     strategies = (("None", "NB", 0), ("Opt", "E", 0), ("Opt", "B", 0.99))
 
-    def level_1_official(hier_id):
-        return Official(hier_id=hier_id, wage=40000, strategy=("Opt", "E", 1.0), kappa=0.3, theta=0.01)
+    b1 = 1
+    b2 = 0.1705
 
-    def level_2_official(hier_id):
-        return Official(hier_id=hier_id, wage=90000, strategy=("Opt", "B", 1.0), kappa=0.6, theta=1)
 
-    officials = [
-        level_2_official((2, 0)), level_2_official((2, 1)),
-        level_1_official((1, 0)), level_1_official((1, 1)),
-        level_1_official((1, 2)), level_1_official((1, 3))
-    ]
+    def level_1_official(hier_id, strat):
+        return Official(hier_id=hier_id, wage=40000, strategy=strat, kappa=0.3, theta=0.01)
+
+    def level_2_official(hier_id, strat):
+        return Official(hier_id=hier_id, wage=90000, strategy=strat, kappa=0.6, theta=1)
+
+    def build_hier(strat1, strat2):
+        offs = [
+            level_2_official((2, 0), strat2), level_2_official((2, 1), strat2),
+            level_1_official((1, 0), strat1), level_1_official((1, 1), strat1),
+            level_1_official((1, 2), strat1), level_1_official((1, 3), strat1)
+        ]
+        return offs
+
+    off_hiers = [build_hier(("Opt", "E", b1), ("Opt", "B", b2)),
+                 build_hier(("Opt", "B", b1), ("Opt", "B", b2)),
+                 build_hier(("None", "NB", b1), ("Opt", "B", b2)),
+                 build_hier(("Opt", "B", b1), ("None", "NB", b2)),
+                 build_hier(("None", "NB", b1), ("None", "NB", b2)),
+                 ]
     off_scheme = {
         (3, 0): ((2, 0), (2, 1)),
         (2, 0): ((1, 0), (1, 1)),
@@ -314,11 +373,11 @@ def main():
         ((1, 2), (1, 3)): (2000000 / 2, 750000)
     }
 
-    inspector = Inspector(70000, inspection_cost_func_example, coverup_cost_func_s3)
 
-    hierarchy = Hierarchy(off_scheme, officials, cutoff_values, inspector)
-
-    simulate(N=100000, hierarchy=hierarchy, steal_fine_func=ru_steal_fine, bribe_fine_func=ru_bribe_fine, reward_func=reward_func_s3)
+    for off_hier in off_hiers:
+        inspector = Inspector(70000, inspection_cost_func_example, coverup_cost_func_s1)
+        hierarchy = Hierarchy(off_scheme, off_hier, cutoff_values, inspector)
+        simulate(N=100000, hierarchy=hierarchy, steal_fine_func=ru_steal_fine, bribe_fine_func=ru_bribe_fine, reward_func=reward_func_s1)
 
 
 if __name__ == "__main__":
