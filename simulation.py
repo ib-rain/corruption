@@ -55,24 +55,27 @@ def true_with_prob(prob):
     return r.random() < prob
 
 
-def ru_steal_fine(wage, stealing):
+#Criminal Code of Russia 285.1
+def ru_steal_fine(wage, stealing, is_in_coal=False):
     if stealing == 0:
         return 0
 
-    if stealing >= 7500000:
-        return max(s.mean((200000, 500000)), wage * 24)
-    return max(s.mean((100000, 300000)), wage * 18)
+    if is_in_coal or stealing >= 7500000:
+        return max(s.mean((2, 5)) * 100000, s.mean((1, 3)) * 12 * wage)
+    return max(s.mean((1, 3)) * 100000, s.mean((1, 2)) * 12 * wage)
 
 
-def ru_bribe_fine(bribe):
-    mul = 0
+#Criminal Code of Russia 291
+def ru_bribe_fine(wage, bribe, is_in_coal=False):
     if bribe >= 1000000:
-        mul = 80
-    elif bribe >= 150000:
-        mul = 70
+        return max(s.mean((2, 4)) * 1000000, s.mean((2, 4)) * 12 * wage, s.mean((70, 90)) * bribe)
+    elif is_in_coal or bribe >= 150000:
+        return max(s.mean((1, 3)) * 1000000, s.mean((1, 3)) * 12 * wage, s.mean((60, 80)) * bribe)
     elif bribe >= 25000:
-        mul = 45
-    return bribe * mul
+        return max(1 * 1000000, 2 * 12 * wage, s.mean((10, 40)) * bribe)
+    else:
+        return max(0.5 * 1000000, 1 * 12 * wage, s.mean((5, 30)) * bribe)
+
 
 
 def threshold_func(stealing, thresholds):
@@ -88,30 +91,52 @@ def reward_func_def(stealing):
     return threshold_func(stealing, ((400000, 75000), (100000, 40000)))
 
 
-def reward_func_s1(stealing):
-    return threshold_func(stealing, ((400000, 100000), (100000, 84750)))
-
-
-def reward_func_s3(stealing):
-    return threshold_func(stealing, ((400000, 375000), (100000, 50000)))
-
-
 def coverup_cost_func_def(stealing):
     return threshold_func(stealing, ((400000, 11250), (100000, 5000)))
 
 
+def reward_func_s1(stealing):
+    return threshold_func(stealing, ((400000, 600000), (100000, 90000)))
+
+
 def coverup_cost_func_s1(stealing):
-    return threshold_func(stealing, ((400000, 70000), (100000, 40125)))
+    return threshold_func(stealing, ((400000, 141642.8571), (100000, 25000)))
+
+
+def reward_func_s2(stealing):
+    return threshold_func(stealing, ((400000, 2000000), (100000, 90000)))
+
+
+def coverup_cost_func_s2(stealing):
+    return threshold_func(stealing, ((400000, 999500), (100000, 25000)))
+
+
+def reward_func_s3(stealing):
+    return threshold_func(stealing, ((400000, 3250000), (100000, 2000000)))
 
 
 def coverup_cost_func_s3(stealing):
-    return threshold_func(stealing, ((400000, 59500), (100000, 15000)))
+    return threshold_func(stealing, ((400000, 2500000), (100000, 999874.976)))
 
-# Bind inspection and coverup costs to hier_id or to wage or to stealing?
+
+def reward_func_1_s1(stealing):
+    return threshold_func(stealing, ((400000, 270000), (100000, 70000)))
+
+
+def coverup_cost_func_1_s1(stealing):
+    return threshold_func(stealing, ((400000, 124500), (100000, 35000)))
+
+
+def reward_func_1_s3(stealing):
+    return threshold_func(stealing, ((400000, 250000), (100000, 84750)))
+
+
+def coverup_cost_func_1_s3(stealing):
+    return threshold_func(stealing, ((400000, 124625), (100000, 40125)))
 
 
 def inspection_cost_func_example(off):
-    if off.hier_id[0] >= 2:
+    if off.hier_id[0] >= 3:
         return 22500
     if off.hier_id[0] >= 1:
         return 10000
@@ -168,7 +193,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                     inspected_off.acc_win += u
                     state_ut -= u
 
-                    for off in set(hierarchy.officials) ^ {inspected_off}:
+                    for off in set(hierarchy.officials) - {inspected_off}:
                         u = off.wage + off.stealing
                         off.acc_win += u
                         state_ut -= u
@@ -185,7 +210,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                     inspected_off.acc_win += u
                     state_ut -= u
 
-                    for off in set(hierarchy.officials) ^ {inspected_off}:
+                    for off in set(hierarchy.officials) - {inspected_off}:
                         u = off.wage + off.stealing
                         off.acc_win += u
                         state_ut -= u
@@ -201,7 +226,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                     inspected_off.acc_win += inspected_off.wage + inspected_off.stealing - inspected_off.bribe()
                     state_ut -= (inspected_off.wage + inspected_off.stealing)
 
-                    for off in set(hierarchy.officials) ^ {inspected_off}:
+                    for off in set(hierarchy.officials) - {inspected_off}:
                         u = off.wage + off.stealing
                         off.acc_win += u
                         state_ut -= u
@@ -226,7 +251,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                             exposer.acc_win += u
                             state_ut -= u
 
-                        for off in set(hierarchy.officials) ^ {inspected_off} ^ set(exposers):
+                        for off in set(hierarchy.officials) - {inspected_off} - set(exposers):
                             u = off.wage + off.stealing
                             off.acc_win += u
                             state_ut -= u
@@ -250,7 +275,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                             exposer.acc_win += u
                             state_ut -= u
 
-                        for off in set(hierarchy.officials) ^ {inspected_off} ^ set(exposers):
+                        for off in set(hierarchy.officials) - {inspected_off} - set(exposers):
                             u = off.wage + off.stealing
                             off.acc_win += u
                             state_ut -= u
@@ -266,7 +291,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                         # print("{}\t{}\t{}\t{}".format(inspected_off.stealing, inspected_off.bribe(), inspected_off.wage, inspected_off.acc_win))
                         state_ut -= (inspected_off.wage + inspected_off.stealing)
 
-                        for off in set(hierarchy.officials) ^ {inspected_off}:
+                        for off in set(hierarchy.officials) - {inspected_off}:
                             u = off.wage + off.stealing
                             off.acc_win += u
                             state_ut -= u
@@ -335,51 +360,95 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
     print("{}\n{}\n{}".format(hierarchy.inspector.acc_win / N, acc_state_util / N, LoC))
 
 
-def main():
-    strategies = (("None", "NB", 0), ("Opt", "E", 0), ("Opt", "B", 0.99))
-
-    b1 = 1
-    b2 = 0.1705
-
-
-    def level_1_official(hier_id, strat):
+def run_5_str(off_scheme, in_and_out_values, funcs, b12s, b3s):
+    def level_12_official(hier_id, strat):
         return Official(hier_id=hier_id, wage=40000, strategy=strat, kappa=0.3, theta=0.01)
 
-    def level_2_official(hier_id, strat):
+    def level_3_official(hier_id, strat):
         return Official(hier_id=hier_id, wage=90000, strategy=strat, kappa=0.6, theta=1)
 
-    def build_hier(strat1, strat2):
+    def build_hier(str1, str2):
         offs = [
-            level_2_official((2, 0), strat2), level_2_official((2, 1), strat2),
-            level_1_official((1, 0), strat1), level_1_official((1, 1), strat1),
-            level_1_official((1, 2), strat1), level_1_official((1, 3), strat1)
+            level_3_official((3, 0), str2), level_3_official((3, 1), str2),
+            level_12_official((2, 0), str1), level_12_official((2, 1), str1),
+            level_12_official((1, 0), str1), level_12_official((1, 1), str1)
         ]
         return offs
 
-    off_hiers = [build_hier(("Opt", "E", b1), ("Opt", "B", b2)),
-                 build_hier(("Opt", "B", b1), ("Opt", "B", b2)),
-                 build_hier(("None", "NB", b1), ("Opt", "B", b2)),
-                 build_hier(("Opt", "B", b1), ("None", "NB", b2)),
-                 build_hier(("None", "NB", b1), ("None", "NB", b2)),
-                 ]
+    for b12 in b12s:
+        for b3 in b3s:
+            print("({},{})".format(b12, b3))
+            off_hiers = [build_hier(("Opt", "E", b12), ("Opt", "B", b3)),
+                         build_hier(("Opt", "B", b12), ("Opt", "B", b3)),
+                         build_hier(("None", "NB", b12), ("Opt", "B", b3)),
+                         build_hier(("Opt", "B", b12), ("None", "NB", b3)),
+                         build_hier(("None", "NB", b12), ("None", "NB", b3)),
+                         ]
+
+            for off_hier in off_hiers:
+                inspector = Inspector(70000, inspection_cost_func_example, funcs[0])
+                hierarchy = Hierarchy(off_scheme, off_hier, in_and_out_values, inspector)
+                simulate(N=500000, hierarchy=hierarchy, steal_fine_func=ru_steal_fine,
+                         bribe_fine_func=ru_bribe_fine, reward_func=funcs[1])
+
+
+def main():
+    strategies = (("None", "NB", 0), ("Opt", "E", 0), ("Opt", "B", 0.99))
+
     off_scheme = {
+        (4, 0): ((3, 0), (3, 1)),
         (3, 0): ((2, 0), (2, 1)),
-        (2, 0): ((1, 0), (1, 1)),
-        (2, 1): ((1, 2), (1, 3))
+        (3, 1): ((1, 0), (1, 1)),
     }
-    cutoff_values = {
-        ((2, 0), (2, 1)): (3000000, 2000000),
-        ((1, 0), (1, 1)): (2000000 / 2, 750000),
-        ((1, 2), (1, 3)): (2000000 / 2, 750000)
+    in_and_out_values = {
+        ((3, 0), (3, 1)): (3000000, 2000000),
+        ((2, 0), (2, 1)): (2000000 / 2, 750000),
+        ((1, 0), (1, 1)): (2000000 / 2, 750000)
     }
 
+    b12s_def = (0.1805, 0.361, 0.5415)
+    b3s_def = (0.08675, 0.1735, 0.2185, 0.2635, 0.39525)
 
-    for off_hier in off_hiers:
-        inspector = Inspector(70000, inspection_cost_func_example, coverup_cost_func_s1)
-        hierarchy = Hierarchy(off_scheme, off_hier, cutoff_values, inspector)
-        simulate(N=100000, hierarchy=hierarchy, steal_fine_func=ru_steal_fine, bribe_fine_func=ru_bribe_fine, reward_func=reward_func_s1)
+    b12s_s1 = (0.4605, 0.921, 1.3815)
+    b3s_s1 = (0.742142857, 1.484285714, 1.599285714, 1.714285714, 2.571428571)
+
+    b12s_s2 = (0.4605, 0.921, 1.3815)
+    b3s_s2 = (3, 6, 6.115, 6.23, 9.345)
+
+    b12s_s3 = (11.9999999, 23.99999981, 35.99999971)
+    b3s_s3 = (5.7505, 11.501, 14.50087498, 17.50074995, 26.25112493)
+
+    #Top b by 1
+
+    b12s_1_s1 = (0.63075, 0.841)
+    b3s_1_s1 = (0.395, 0.79, 0.895, 1)
+
+    b12s_1_s3 = (0.5, 1)
+    b3s_1_s3 = (0.375125, 0.75025, 0.875125, 1)
+
+    ###
+
+    b12_def_1 = (0.361,)
+    b3_def_1 = (0.2635,)
+
+    b12_s1_1 = (0.921,)
+    b3_s1_1 = (1.714285714,)
+
+    b12_s2_1 = (0.921,)
+    b3_s2_1 = (6.23,)
+
+    b12_s3_1 = (23.99999981,)
+    b3_s3_1 = (17.50074995,)
+
+    b12_z1_1 = (0.841,)
+    b3_z1_1 = (1,)
+
+    b12_z3_1 = (1,)
+    b3_z3_1 = (1,)
+
+
+    run_5_str(off_scheme=off_scheme, in_and_out_values=in_and_out_values, funcs=(coverup_cost_func_def, reward_func_def), b12s=b12_z3_1, b3s=b3_z3_1)
 
 
 if __name__ == "__main__":
     main()
-
