@@ -9,7 +9,7 @@ class Official:
         # Strategy is a 3-tuple: (stealing_strategy, action_if_inspected, bribe_coeff)
         self.stealing_strategy = strategy[0]
         self.action = strategy[1]
-        self.bribe_coeff = strategy[2]
+        self.bribe = strategy[2]
         self.kappa = kappa
         self.theta = theta
         self.stealing = 0
@@ -23,8 +23,8 @@ class Official:
             self.stealing = opt_stealing
         return self.stealing
 
-    def bribe(self):
-        return self.bribe_coeff * self.stealing
+    def pay_bribe(self):
+        return self.bribe
 
 
 class Hierarchy:
@@ -94,21 +94,20 @@ def reward_func_def(stealing):
 def coverup_cost_func_def(stealing):
     return threshold_func(stealing, ((400000, 11250), (100000, 5000)))
 
-
 def reward_func_s1(stealing):
-    return threshold_func(stealing, ((400000, 600000), (100000, 90000)))
+    return threshold_func(stealing, ((400000, 875000), (100000, 60000)))
 
 
 def coverup_cost_func_s1(stealing):
-    return threshold_func(stealing, ((400000, 141642.8571), (100000, 25000)))
+    return threshold_func(stealing, ((400000, 429615.3846), (100000, 20000)))
 
 
 def reward_func_s2(stealing):
-    return threshold_func(stealing, ((400000, 2000000), (100000, 90000)))
+    return threshold_func(stealing, ((400000, 2000000), (100000, 60000)))
 
 
 def coverup_cost_func_s2(stealing):
-    return threshold_func(stealing, ((400000, 999500), (100000, 25000)))
+    return threshold_func(stealing, ((400000, 1000000), (100000, 20000)))
 
 
 def reward_func_s3(stealing):
@@ -116,23 +115,23 @@ def reward_func_s3(stealing):
 
 
 def coverup_cost_func_s3(stealing):
-    return threshold_func(stealing, ((400000, 2500000), (100000, 999874.976)))
+    return threshold_func(stealing, ((400000, 2500000), (100000, 999999.976)))
 
 
-def reward_func_1_s1(stealing):
+def reward_func_z1(stealing):
     return threshold_func(stealing, ((400000, 270000), (100000, 70000)))
 
 
-def coverup_cost_func_1_s1(stealing):
-    return threshold_func(stealing, ((400000, 124500), (100000, 35000)))
+def coverup_cost_func_z1(stealing):
+    return threshold_func(stealing, ((400000, 124999), (100000, 35000)))
 
 
-def reward_func_1_s3(stealing):
-    return threshold_func(stealing, ((400000, 250000), (100000, 84750)))
+def reward_func_z3(stealing):
+    return threshold_func(stealing, ((400000, 250000), (100000, 85000)))
 
 
-def coverup_cost_func_1_s3(stealing):
-    return threshold_func(stealing, ((400000, 124625), (100000, 40125)))
+def coverup_cost_func_z3(stealing):
+    return threshold_func(stealing, ((400000, 125000), (100000, 39999)))
 
 
 def inspection_cost_func_example(off):
@@ -205,8 +204,8 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                 elif x == 3:
                     # Rejected bribe
                     u = inspected_off.wage + inspected_off.kappa * inspected_off.stealing - (
-                            inspected_off.bribe() + steal_fine_func(inspected_off.wage, inspected_off.stealing) +
-                            bribe_fine_func(inspected_off.bribe()))
+                            inspected_off.pay_bribe() + steal_fine_func(inspected_off.wage, inspected_off.stealing) +
+                            bribe_fine_func(inspected_off.wage, inspected_off.pay_bribe()))
                     inspected_off.acc_win += u
                     state_ut -= u
 
@@ -223,7 +222,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                     return state_ut
                 elif x == 4:
                     # Accepted bribe
-                    inspected_off.acc_win += inspected_off.wage + inspected_off.stealing - inspected_off.bribe()
+                    inspected_off.acc_win += inspected_off.wage + inspected_off.stealing - inspected_off.pay_bribe()
                     state_ut -= (inspected_off.wage + inspected_off.stealing)
 
                     for off in set(hierarchy.officials) - {inspected_off}:
@@ -231,7 +230,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                         off.acc_win += u
                         state_ut -= u
 
-                    hierarchy.inspector.acc_win += hierarchy.inspector.wage + inspected_off.bribe() - (
+                    hierarchy.inspector.acc_win += hierarchy.inspector.wage + inspected_off.pay_bribe() - (
                             hierarchy.inspector.inspection_cost_func(inspected_off) + hierarchy.inspector.coverup_cost_func(inspected_off.stealing))
                     state_ut -= hierarchy.inspector.wage
 
@@ -264,7 +263,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                     elif x == 6:
                         # Exposed, rejected bribe
                         u = inspected_off.wage + inspected_off.kappa * inspected_off.stealing - (steal_fine_func(
-                            inspected_off.wage, inspected_off.stealing) + inspected_off.bribe() + bribe_fine_func(inspected_off.bribe()))
+                            inspected_off.wage, inspected_off.stealing) + inspected_off.pay_bribe() + bribe_fine_func(inspected_off.wage, inspected_off.pay_bribe()))
                         inspected_off.acc_win += u
                         state_ut -= u
 
@@ -287,8 +286,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                         return state_ut
                     elif x == 7:
                         # Exposed, accepted bribe
-                        inspected_off.acc_win += inspected_off.wage + inspected_off.stealing - inspected_off.bribe()
-                        # print("{}\t{}\t{}\t{}".format(inspected_off.stealing, inspected_off.bribe(), inspected_off.wage, inspected_off.acc_win))
+                        inspected_off.acc_win += inspected_off.wage + inspected_off.stealing - inspected_off.pay_bribe()
                         state_ut -= (inspected_off.wage + inspected_off.stealing)
 
                         for off in set(hierarchy.officials) - {inspected_off}:
@@ -296,7 +294,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                             off.acc_win += u
                             state_ut -= u
 
-                        hierarchy.inspector.acc_win += hierarchy.inspector.wage + inspected_off.bribe() - (hierarchy.inspector.inspection_cost_func(
+                        hierarchy.inspector.acc_win += hierarchy.inspector.wage + inspected_off.pay_bribe() - (hierarchy.inspector.inspection_cost_func(
                             inspected_off) + hierarchy.inspector.coverup_cost_func(inspected_off.stealing) + sum_coverup + sum_inspect)
                         state_ut -= hierarchy.inspector.wage
 
@@ -322,7 +320,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                     acc_state_util += end(2)
                     break
                 if action == "B":
-                    acc_part_util = inspected_off.bribe() - hierarchy.inspector.coverup_cost_func(inspected_off.stealing)
+                    acc_part_util = inspected_off.pay_bribe() - hierarchy.inspector.coverup_cost_func(inspected_off.stealing)
                     rej_part_util = reward_func(inspected_off.stealing)
                     if acc_part_util <= rej_part_util:
                         acc_state_util += end(3)
@@ -339,7 +337,7 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func):
                             break
                         if action == "B":
                             exposers_coverup, exposers_reward, exposers_inspect = calc_coverup_reward_inspect(exposers)
-                            acc_part_util = inspected_off.bribe() - hierarchy.inspector.coverup_cost_func(
+                            acc_part_util = inspected_off.pay_bribe() - hierarchy.inspector.coverup_cost_func(
                                 inspected_off.stealing) - exposers_coverup
                             rej_part_util = reward_func(inspected_off.stealing) + exposers_reward
                             if acc_part_util <= rej_part_util:
@@ -377,7 +375,7 @@ def run_5_str(off_scheme, in_and_out_values, funcs, b12s, b3s):
 
     for b12 in b12s:
         for b3 in b3s:
-            print("({},{})".format(b12, b3))
+            print("({}, {})".format(b12, b3))
             off_hiers = [build_hier(("Opt", "E", b12), ("Opt", "B", b3)),
                          build_hier(("Opt", "B", b12), ("Opt", "B", b3)),
                          build_hier(("None", "NB", b12), ("Opt", "B", b3)),
@@ -406,48 +404,28 @@ def main():
         ((1, 0), (1, 1)): (2000000 / 2, 750000)
     }
 
-    b12s_def = (0.1805, 0.361, 0.5415)
-    b3s_def = (0.08675, 0.1735, 0.2185, 0.2635, 0.39525)
+    B12_d = (22500.5, 45001, 67501.5)
+    B3_d = (43125.5, 86251, 108751, 131251, 196876.5)
 
-    b12s_s1 = (0.4605, 0.921, 1.3815)
-    b3s_s1 = (0.742142857, 1.484285714, 1.599285714, 1.714285714, 2.571428571)
+    B12_s1 = (40000.5, 80001, 120001.5)
+    B3_s1 = (652308.192307692, 1304616.38461538, 1344616.38461538, 1384616.38461538, 2076924.57692308)
 
-    b12s_s2 = (0.4605, 0.921, 1.3815)
-    b3s_s2 = (3, 6, 6.115, 6.23, 9.345)
+    B12_s2 = (40000.5, 80001, 120001.5)
+    B3_s2 = (1500000.5, 3000001, 3040001, 3080001, 4620001.5)
 
-    b12s_s3 = (11.9999999, 23.99999981, 35.99999971)
-    b3s_s3 = (5.7505, 11.501, 14.50087498, 17.50074995, 26.25112493)
+    B12_s3 = (1500000.488, 3000000.976, 4500001.464)
+    B3_s3 = (2875000.5, 5750001, 7250000.988, 8750000.976, 13125001.464)
 
-    #Top b by 1
+    B12_z1 = (78750.75, 105001)
+    B3_z1 = (197500, 395000, 447500, 500000)
 
-    b12s_1_s1 = (0.63075, 0.841)
-    b3s_1_s1 = (0.395, 0.79, 0.895, 1)
+    B12_z3 = (62500, 125000)
+    B3_z3 = (187500.5, 375001, 437500.5, 500000)
 
-    b12s_1_s3 = (0.5, 1)
-    b3s_1_s3 = (0.375125, 0.75025, 0.875125, 1)
+    B12_ex = (62500,)
+    B3_ex = (150000, )
 
-    ###
-
-    b12_def_1 = (0.361,)
-    b3_def_1 = (0.2635,)
-
-    b12_s1_1 = (0.921,)
-    b3_s1_1 = (1.714285714,)
-
-    b12_s2_1 = (0.921,)
-    b3_s2_1 = (6.23,)
-
-    b12_s3_1 = (23.99999981,)
-    b3_s3_1 = (17.50074995,)
-
-    b12_z1_1 = (0.841,)
-    b3_z1_1 = (1,)
-
-    b12_z3_1 = (1,)
-    b3_z3_1 = (1,)
-
-
-    run_5_str(off_scheme=off_scheme, in_and_out_values=in_and_out_values, funcs=(coverup_cost_func_def, reward_func_def), b12s=b12_z3_1, b3s=b3_z3_1)
+    run_5_str(off_scheme=off_scheme, in_and_out_values=in_and_out_values, funcs=(coverup_cost_func_def, reward_func_def), b12s=B12_ex, b3s=B3_ex)
 
 
 if __name__ == "__main__":
