@@ -1,5 +1,9 @@
 import random as r
 import statistics as s
+import matplotlib.pyplot as plt
+import numpy as np
+from itertools import chain
+from matplotlib.ticker import FuncFormatter
 
 
 class Official:
@@ -89,11 +93,14 @@ def SS_with_xi(xi):
             if off[0] == bl:
                 subs = subs.union(set(hier.scheme[off]))
 
+        N_bl = len([1 for off in coal_off_ids if off[0] == bl])
+
         if off_id[0] == bl:
-            U = hier.get_with_id(off_id).stealing - (bribe + xi * len(subs.intersection(set(coal_off_ids))) * hier.get_with_id(off_id).stealing) / len([1 for off in coal_off_ids if off[0] == bl])
+            U = hier.get_with_id(off_id).stealing - (bribe + xi * len(subs.intersection(set(coal_off_ids)))) / N_bl
 
         elif off_id[0] in (1, 2):
-            U = hier.get_with_id(off_id).stealing + xi * hier.get_boss_of_id(off_id).stealing
+            U = hier.get_with_id(off_id).stealing + xi
+
 # Hard-coded and works only on the hierarchy suggested in the work: 3 levels with 2 officials on each.
         return U
 
@@ -112,7 +119,7 @@ def true_with_prob(prob):
 
 
 #Criminal Code of Russia 285.1
-def ru_steal_fine(wage, stealing, is_in_coal):
+def ru_steal_fine(wage, stealing, is_in_coal=False):
     if stealing == 0:
         return 0
 
@@ -122,7 +129,7 @@ def ru_steal_fine(wage, stealing, is_in_coal):
 
 
 #Criminal Code of Russia 291
-def ru_bribe_fine(wage, bribe, is_in_coal):
+def ru_bribe_fine(wage, bribe, is_in_coal=False):
     if bribe >= 1000000:
         return max(s.mean((2, 4)) * 1000000, s.mean((2, 4)) * 12 * wage, s.mean((70, 90)) * bribe)
     elif is_in_coal or bribe >= 150000:
@@ -151,19 +158,19 @@ def coverup_cost_func_def(stealing):
 
 
 def reward_func_s1(stealing):
-    return threshold_func(stealing, ((400000, 600000), (100000, 90000)))
+    return threshold_func(stealing, ((400000, 875000), (100000, 60000)))
 
 
 def coverup_cost_func_s1(stealing):
-    return threshold_func(stealing, ((400000, 141642.8571), (100000, 25000)))
+    return threshold_func(stealing, ((400000, 429615.3846), (100000, 20000)))
 
 
 def reward_func_s2(stealing):
-    return threshold_func(stealing, ((400000, 2000000), (100000, 90000)))
+    return threshold_func(stealing, ((400000, 2000000), (100000, 60000)))
 
 
 def coverup_cost_func_s2(stealing):
-    return threshold_func(stealing, ((400000, 999500), (100000, 25000)))
+    return threshold_func(stealing, ((400000, 1000000), (100000, 20000)))
 
 
 def reward_func_s3(stealing):
@@ -171,23 +178,23 @@ def reward_func_s3(stealing):
 
 
 def coverup_cost_func_s3(stealing):
-    return threshold_func(stealing, ((400000, 2500000), (100000, 999874.976)))
+    return threshold_func(stealing, ((400000, 2500000), (100000, 999999.976)))
 
 
-def reward_func_1_s1(stealing):
-    return threshold_func(stealing, ((400000, 270000), (100000, 70000)))
+def reward_func_z1(stealing):
+    return threshold_func(stealing, ((400000, 270000 ), (100000, 70000)))
 
 
-def coverup_cost_func_1_s1(stealing):
-    return threshold_func(stealing, ((400000, 124500), (100000, 35000)))
+def coverup_cost_func_z1(stealing):
+    return threshold_func(stealing, ((400000, 124999 ), (100000, 35000)))
 
 
-def reward_func_1_s3(stealing):
-    return threshold_func(stealing, ((400000, 250000), (100000, 84750)))
+def reward_func_z3(stealing):
+    return threshold_func(stealing, ((400000, 250000 ), (100000, 85000)))
 
 
-def coverup_cost_func_1_s3(stealing):
-    return threshold_func(stealing, ((400000, 124625), (100000, 40125)))
+def coverup_cost_func_z3(stealing):
+    return threshold_func(stealing, ((400000, 125000 ), (100000, 39999)))
 
 
 def inspection_cost_func_example(off):
@@ -234,12 +241,13 @@ def simulate(N, hierarchy, steal_fine_func, bribe_fine_func, reward_func, coalit
 
         def end(x):
             utils_correct = coalition.calc_utils()
+            # Returns False in case of fine?
+
             if not utils_correct:
                 print("ERROR in calculating coalitional utilities, review the rule!")
                 exit(-1)
 
             state_ut = init_money
-            # print(x)
 
             if x == 1:
                 # No inspection
@@ -565,12 +573,47 @@ def run_coals(off_scheme, in_and_out_values, funcs, wages, bribes, coal_scheme_t
             inspector = Inspector(70000, inspection_cost_func_example, funcs[0])
             hierarchy = Hierarchy(off_scheme, off_hier, in_and_out_values, inspector)
             coalition = Coalition(scheme_tuple=sc_tuple, hierarchy=hierarchy, rule=rule)
-            simulate(N=100000, hierarchy=hierarchy, steal_fine_func=ru_steal_fine,
+            simulate(N=500000, hierarchy=hierarchy, steal_fine_func=ru_steal_fine,
                     bribe_fine_func=ru_bribe_fine, reward_func=funcs[1], coalition=coalition)
 
 
+def analyze_sensitivity_B(stealings, a_p, reward_and_coverup_funcs, title):
+    # X is zeta, Y is bribe.
+    max_st = max(stealings)
+    x = np.linspace(1, max_st, 10)
+    print(x)
+    ys = {}
+    for type_funcs in reward_and_coverup_funcs:
+        reward_and_coverup_costs = 0
+        for stealing in stealings:
+            reward_and_coverup_costs += type_funcs[1][0](stealing) + type_funcs[1][1](stealing)
+
+        ys[type_funcs[0]] = reward_and_coverup_costs + x
+
+    for k in ys:
+        plt.plot(x, ys[k], label=k)
+
+    plt.hlines(max_st / a_p, 1, max_st, linestyles='dashdot')
+
+    print(max_st / a_p)
+
+    plt.title(title)
+    plt.ylabel('Bribe')
+    plt.xlabel('ζ')
+
+    plt.xlim(0, max_st)
+    plt.ylim(0, max(list(chain.from_iterable([l.tolist() for l in ys.values()])))+100000)
+
+    ax = plt.subplot()
+    ax.get_xaxis().set_major_formatter(FuncFormatter(lambda x, p: format(int(x), ',')))
+    ax.get_yaxis().set_major_formatter(FuncFormatter(lambda y, p: format(int(y), ',')))
+
+    plt.legend()
+    plt.show()
+
 def main():
-    coal_scheme_tuples = [('1B1SL0', [(3, 0), (2, 0)],),
+    coal_scheme_tuples = [
+             ('1B1SL0', [(3, 0), (2, 0)],),
              ('1B1SL1', [(3, 0), (2, 1)],),
              ('1B1SR0', [(3, 1), (1, 0)],),
              ('1B1SR1', [(3, 1), (1, 1)],),
@@ -610,22 +653,41 @@ def main():
     W = [0, 90000, 40000]
     S = [0, 500000, 125000]
 
-    B_d = [131750, 86750, 45125]
+    d = [131251, 86251, 45001]
+    s1 = [1384616.385, 1304616.385, 80001]
+    s2 = [3080001, 3000001, 80001]
+    s3 = [8750000.976, 5750001, 3000000.976]
 
-    B_1 = [857142.8571, 742142.8571, 115125]
-    B_2 = [3115000, 3000000, 115125]
-    B_3 = [8750374.976, 2999999.976, 5750500]
+    z1 = (500000, 395000, 105001)
+    z3 = (500000, 375001, 125000)
 
-    B_t1 = []
-    B_t3 = []
+    B = d
 
-    B = B_d
+    rules = (EQ_rule, SS_with_xi(1))
+    # rules = (SS_with_xi(1),)
+    # rules = (EQ_rule,)
 
-    # rules = {EQ_rule, SS_with_xi(0.01)}
-    rules = {EQ_rule}
+    no_coal = [("None", [],)]
 
-    run_coals(off_scheme=off_scheme, in_and_out_values=in_and_out_values, funcs=(coverup_cost_func_def, reward_func_def),
-              wages=[W[s], W[b]], bribes=B, coal_scheme_tuples=coal_scheme_tuples, rules=rules)
+    # run_coals(off_scheme=off_scheme, in_and_out_values=in_and_out_values, funcs=(coverup_cost_func_def, reward_func_def),
+    #           wages=[W[s], W[b]], bribes=B, coal_scheme_tuples=no_coal, rules=rules)
+
+    a = [0, 0.5, 0.416666667, 0.333333333]
+    a_eff = [0, (1 - a[3]) * (1 - a[2]) * a[1], (1 - a[3]) * a[2], a[3]]
+    a_0_eff_i = [0, 0.041666667, 0.076388889, 0]
+    print(a_eff)
+
+    types_and_funcs = [("def", [coverup_cost_func_def, reward_func_def]),
+                       ("s1", [coverup_cost_func_s1, reward_func_s1]),
+                       ("s2", [coverup_cost_func_s2, reward_func_s2]),
+                       ("s3", [coverup_cost_func_s3, reward_func_s3]),]
+
+    types_and_funcs_z = [("z1", [coverup_cost_func_z1, reward_func_z1]),
+                         ("z3", [coverup_cost_func_z3, reward_func_z3]),]
+
+    analyze_sensitivity_B([S[b], S[s]], a_eff[3]/2 + min(a_eff[1], a_eff[2]), types_and_funcs, "Chain")
+    analyze_sensitivity_B([S[b]], a_eff[3]/2, types_and_funcs, "Boss")
+    analyze_sensitivity_B([S[s]], min(a_0_eff_i[1], a_0_eff_i[2]), types_and_funcs, "Subordinate only")
 
 
 if __name__ == "__main__":
