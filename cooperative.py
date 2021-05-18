@@ -118,7 +118,21 @@ def true_with_prob(prob):
     return r.random() < prob
 
 
-#Criminal Code of Russia 285.1
+# Criminal Code of Russia 160
+def ru_steal_fine160(wage, stealing, is_in_coal=False):
+    if stealing == 0:
+        return 0
+
+    if is_in_coal or stealing >= 1000000:
+        return max(1000000, 3 * 12 * wage)
+    if stealing >= 250000:
+        return max(s.mean((1, 5)) * 100000, s.mean((1, 3)) * 12 * wage)
+    if stealing >= 5000:
+        return max(300 * 1000, 2 * 12 * wage)
+    return max(120 * 1000, 1 * 12 * wage)
+
+
+# Criminal Code of Russia 285.1
 def ru_steal_fine(wage, stealing, is_in_coal=False):
     if stealing == 0:
         return 0
@@ -128,7 +142,7 @@ def ru_steal_fine(wage, stealing, is_in_coal=False):
     return max(s.mean((1, 3)) * 100000, s.mean((1, 2)) * 12 * wage)
 
 
-#Criminal Code of Russia 291
+# Criminal Code of Russia 291
 def ru_bribe_fine(wage, bribe, is_in_coal=False):
     if bribe >= 1000000:
         return max(s.mean((2, 4)) * 1000000, s.mean((2, 4)) * 12 * wage, s.mean((70, 90)) * bribe)
